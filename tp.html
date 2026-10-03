@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Teleprompter V5.23 Active Line Guide</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --bg:#000; --text:#e8e8e8; --highlight:#ffdd00; --bar-h:56px; --font-size:52px; --line-height:1.55; }
+  html,body { height:100%; background:var(--bg); color:var(--text); font-family:Arial,sans-serif; overflow:hidden; }
+  body.mirror #viewport { transform:scaleX(-1); }
+
+  #bar {
+    position:fixed; top:0; left:0; right:0; height:var(--bar-h);
+    background:rgba(0,0,0,.88); backdrop-filter:blur(8px);
+    display:flex; align-items:center; padding:0 20px; gap:12px;
+    z-index:100; border-bottom:1px solid #1a1a1a;
+  }
+  #status-dot { width:10px; height:10px; border-radius:50%; background:#444; transition:background .4s; flex-shrink:0; }
+  #status-dot.ok  { background:#22c55e; }
+  #status-dot.err { background:#ef4444; }
+  #status-text { font-size:12px; color:#666; flex:1; }
+  #mode-label { font-size:11px; font-weight:700; padding:3px 10px; border-radius:999px; background:var(--highlight); color:#000; }
+  #progress-wrap { width:160px; height:3px; background:#222; border-radius:2px; overflow:hidden; }
+  #progress-bar  { height:100%; width:0%; background:var(--highlight); border-radius:2px; }
+  #pct { font-size:12px; color:#555; min-width:34px; text-align:right; }
+
+  #viewport {
+    position:fixed; top:var(--bar-h); left:0; right:0; bottom:0; overflow:hidden;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 8%, black 88%, transparent 100%);
+    mask-image:         linear-gradient(to bottom, transparent 0%, black 8%, black 88%, transparent 100%);
+  }
+  
+  
+  /* SEM transition no scroller — a animação é feita via RAF para ser fluída */
+  #scroller {
+    position:absolute; left:50%;
+    width:min(92%,1100px); padding:80px 0 70vh;
+    will-change:transform;
+    transform: translateX(-50%) translateY(0px);
+  }
+  #script-text {
+    font-size:var(--font-size); line-height:var(--line-height);
+    font-weight:600; letter-spacing:.01em;
+    text-align:center; white-space:pre-wrap; word-break:break-word;
+  }
+  .btn { background:#1c1c1c; border:1px solid #2a2a2a; color:#aaa; font-size:12px; padding:4px 10px; border-radius:4px; cursor:pointer; user-select:none; }
+  .btn:hover { background:#2a2a2a; color:#fff; }
+  #font-label { font-size:12px; color:#555; min-width:26px; text-align:center; }
+
+
+  #cursor-line {
+    position:fixed;
+    left:0;
+    right:0;
+    top:var(--guide-y, 50vh);
+    height:2px;
+    background:rgba(255,221,0,.36);
+    pointer-events:none;
+    z-index:9998;
+  }
+
+  #read-arrow {
+    position:fixed;
+    left:24px;
+    top:calc(var(--guide-y, 50vh) - 22px);
+    width:0;
+    height:0;
+    border-top:22px solid transparent;
+    border-bottom:22px solid transparent;
+    border-left:32px solid #ffdd00;
+    filter:drop-shadow(0 0 10px rgba(255,221,0,.75));
+    z-index:9999;
+    pointer-events:none;
+  }
+
+  #read-label {
+    position:fixed;
+    left:70px;
+    top:calc(var(--guide-y, 50vh) - 10px);
+    color:#ffdd00;
+    background:rgba(0,0,0,.55);
+    border:1px solid rgba(255,221,0,.4);
+    border-radius:999px;
+    padding:3px 8px;
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.08em;
+    z-index:9999;
+    pointer-events:none;
+  }
+
+</style>
+</head>
+<body>
+<div id="cursor-line"></div>
+<div id="read-arrow"></div>
+<div id="read-label">LINHA GUIA</div>
+<div id="bar">
+  <div id="status-dot"></div>
+  <span id="status-text">Aguardando…</span>
+  <span id="mode-label">AUTO</span>
+  <button class="btn" id="btn-minus">A−</button>
+  <span id="font-label">52</span>
+  <button class="btn" id="btn-plus">A+</button>
+  <div id="progress-wrap"><div id="progress-bar"></div></div>
+  <span id="pct">0%</span>
+</div>
+
+<div id="viewport">
+<div id="scroller"><div id="script-text">Carregando roteiro…</div></div>
+</div>
+
+<script>
+// ── Estado ────────────────────────────────────────────────────────────
+let autoMode    = true;
+let playing     = true;
+let manualSpeed = 0.00060;
+let fontSize    = 52;
+let ws          = null;
+
+// Progresso: currentP é o que está sendo renderizado (suavizado via lerp)
+//            targetP  é o destino enviado pelo servidor
+let currentP = 0;
+let targetP  = 0;
+
+// Velocidade de interpolação — quanto mais alto, mais rápido chega ao alvo
+// 0.04 = chega ~98% em ~3s, suave e orgânico
+const LERP_SPEED = 0.050;
+const MAX_TARGET_ADVANCE = 0.014;
+const MAX_RENDER_DELTA = 0.0030;
+
+const DOT      = document.getElementById('status-dot');
+const STAT     = document.getElementById('status-text');
+const MODE     = document.getElementById('mode-label');
+const scroller = document.getElementById('scroller');
+const rootEl   = document.documentElement;
+const lbl      = document.getElementById('font-label');
+
+const VIEWPORT = document.getElementById('viewport');
+let guideRatio = 0.50; // 0.50 = centro real da área preta de leitura
+const ACTIVE_LINE_OFFSET_LINES = 3.0; // compensa a linha realmente lida para coincidir com a guia
+
+
+function getLineHeightPx() {
+  const el = document.getElementById('script-text');
+  const st = window.getComputedStyle(el);
+  let lh = parseFloat(st.lineHeight);
+
+  if (!Number.isFinite(lh)) {
+    lh = parseFloat(st.fontSize) * 1.55;
+  }
+
+  return lh || 80;
+}
+
+function updateGuidePosition() {
+  const r = VIEWPORT.getBoundingClientRect();
+  const y = r.top + (r.height * guideRatio);
+  document.documentElement.style.setProperty('--guide-y', y + 'px');
+  return y;
+}
+
+
+function clamp01(v) { return Math.max(0, Math.min(1, Number(v) || 0)); }
+function sendWS(msg) { try { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg)); } catch(e) {} }
+
+
+// ── Normalização de roteiro para exibição ─────────────────────────────
+// Corrige TXT com quebras artificiais de linha, linhas em branco e espaços.
+// O arquivo original não é alterado; a limpeza é só na tela do TP.
+function normalizeScriptForTP(raw) {
+  if (!raw) return '';
+
+  let text = raw
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/\t/g, ' ')
+    .replace(/[ ]{2,}/g, ' ')
+    .trim();
+
+  let lines = text.split('\n').map(l => l.trim());
+
+  // Remove excesso de linhas vazias: no máximo uma linha vazia seguida.
+  let cleaned = [];
+  let emptyCount = 0;
+
+  for (const line of lines) {
+    if (!line) {
+      emptyCount++;
+      if (emptyCount <= 1) cleaned.push('');
+    } else {
+      emptyCount = 0;
+      cleaned.push(line);
+    }
+  }
+
+  // Junta linhas quebradas artificialmente dentro do mesmo parágrafo.
+  // Linha vazia vira separador real de parágrafo.
+  let paragraphs = [];
+  let current = [];
+
+  for (const line of cleaned) {
+    if (!line) {
+      if (current.length) {
+        paragraphs.push(current.join(' '));
+        current = [];
+      }
+      continue;
+    }
+    current.push(line);
+  }
+
+  if (current.length) paragraphs.push(current.join(' '));
+
+  return paragraphs
+    .map(p => p.replace(/[ ]{2,}/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+
+// ── Carregar roteiro ──────────────────────────────────────────────────
+async function loadScript() {
+  try {
+    const r = await fetch('roteiro.txt?v=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) throw new Error();
+    document.getElementById('script-text').textContent = normalizeScriptForTP(await r.text());
+    setProgress(0, true);
+    setTimeout(() => renderP(currentP), 80);
+  } catch(e) {
+    document.getElementById('script-text').textContent = '⚠️ roteiro.txt não encontrado.';
+  }
+}
+
+// ── Cálculo de posição ────────────────────────────────────────────────
+function calcY(p) {
+  const vH   = document.getElementById('viewport').clientHeight;
+  const sH   = scroller.scrollHeight;
+  const maxY = Math.max(0, sH - vH);
+  return -(p * maxY) + vH * guideRatio - (getLineHeightPx() * ACTIVE_LINE_OFFSET_LINES);
+}
+
+function renderP(p) {
+  updateGuidePosition();
+  scroller.style.transform = `translateX(-50%) translateY(${calcY(p)}px)`;
+  document.getElementById('progress-bar').style.width = (p * 100).toFixed(1) + '%';
+  document.getElementById('pct').textContent = Math.round(p * 100) + '%';
+}
+
+// Setar progresso alvo — instant pula direto sem lerp
+function setProgress(p, instant) {
+  p = clamp01(p);
+
+  if (instant) {
+    targetP = p;
+    currentP = p;
+    renderP(p);
+    return;
+  }
+
+  if (p > targetP + MAX_TARGET_ADVANCE) {
+    targetP = clamp01(targetP + MAX_TARGET_ADVANCE);
+  } else {
+    targetP = p;
+  }
+}
+
+// ── Loop principal via RAF ────────────────────────────────────────────
+// Toda a animação — tanto manual quanto auto — passa por aqui.
+// Isso garante movimento SEMPRE fluído, independente de quando o servidor manda dados.
+let lastTS = null;
+
+function rafLoop(ts) {
+  const dt = lastTS ? Math.min((ts - lastTS) / 1000, 0.05) : 0;
+  lastTS = ts;
+
+  if (!autoMode && playing) {
+    // Modo manual: avança o alvo continuamente
+    targetP = clamp01(targetP + manualSpeed * dt * 60);
+  }
+
+  // Lerp exponencial com limitador de velocidade visual.
+  let alpha = 1 - Math.pow(1 - LERP_SPEED, dt * 60);
+
+  let nextP = currentP + (targetP - currentP) * alpha;
+  let delta = nextP - currentP;
+
+  const maxDelta = MAX_RENDER_DELTA * Math.max(0.5, dt * 60);
+  if (delta > maxDelta) delta = maxDelta;
+  if (delta < -maxDelta) delta = -maxDelta;
+
+  currentP = clamp01(currentP + delta);
+
+  if (Math.abs(currentP - targetP) < 0.00001) {
+    currentP = targetP;
+  }
+
+  renderP(currentP);
+  requestAnimationFrame(rafLoop);
+}
+requestAnimationFrame(rafLoop);
+
+// ── HUD ───────────────────────────────────────────────────────────────
+function updateHUD() {
+  if (autoMode) {
+    MODE.textContent = 'AUTO';
+    MODE.style.background = '#ffdd00';
+    MODE.style.color = '#000';
+  } else {
+    MODE.textContent = playing ? 'MANUAL ▶' : 'MANUAL ❚❚';
+    MODE.style.background = '#38bdf8';
+    MODE.style.color = '#000';
+  }
+}
+
+// ── Controles ─────────────────────────────────────────────────────────
+function setMode(mode, notify) {
+  autoMode = (mode === 'auto');
+  updateHUD();
+  if (notify) sendWS({ type: 'control', mode, action: autoMode ? 'sync_cursor' : undefined, progress: currentP });
+}
+
+function togglePlay() {
+  playing = !playing;
+  updateHUD();
+  sendWS({ type: 'control', action: 'toggle_play', progress: currentP });
+}
+
+function resetTP(notify = true) {
+  autoMode = true; playing = true;
+  setProgress(0, true);
+  updateHUD();
+  if (notify) sendWS({ type: 'control', action: 'reset', progress: 0 });
+}
+
+function manualStep(delta) {
+  autoMode = false;
+  targetP = clamp01(targetP + Number(delta || 0));
+  updateHUD();
+  sendWS({ type: 'control', mode: 'manual', progress: currentP });
+}
+
+function setSpeed(v) {
+  const n = Number(v);
+  if (!isNaN(n) && n > 0) manualSpeed = Math.max(0.0002, Math.min(0.0025, n));
+}
+
+function changeFont(delta) {
+  fontSize = Math.max(24, Math.min(96, fontSize + delta));
+  rootEl.style.setProperty('--font-size', fontSize + 'px');
+  lbl.textContent = fontSize;
+  // Recalcula posição após mudança de fonte
+  setTimeout(() => renderP(currentP), 50);
+}
+
+// ── Mensagens WS ──────────────────────────────────────────────────────
+function handleControl(msg) {
+  if (msg.mode === 'auto')   setMode('auto', false);
+  if (msg.mode === 'manual') setMode('manual', false);
+  if (typeof msg.speed === 'number') setSpeed(msg.speed);
+
+  const action = msg.action || msg.cmd || '';
+  if (action === 'toggle_play' || action === 'play_pause' || action === 'playpause') togglePlay();
+  if (action === 'play')   { playing = true;  updateHUD(); }
+  if (action === 'pause')  { playing = false; updateHUD(); }
+  if (action === 'reset')  resetTP(false);
+  if (action === 'forward') manualStep(msg.value ?? 0.008);
+  if (action === 'back')    manualStep(-(msg.value ?? 0.02));
+  if (action === 'toggle_mirror' || action === 'mirror') document.body.classList.toggle('mirror');
+  if (action === 'font_plus')  changeFont(4);
+  if (action === 'font_minus') changeFont(-4);
+  if (action === 'reload') loadScript();
+  if (typeof msg.progress === 'number') setProgress(msg.progress, false);
+}
+
+// ── WebSocket ─────────────────────────────────────────────────────────
+function connect() {
+  const host = location.hostname || '127.0.0.1';
+  ws = new WebSocket('ws://' + host + ':8765/');
+
+  ws.onopen = () => {
+    DOT.className = 'ok';
+    STAT.textContent = 'Conectado — aguardando fala/comando…';
+  };
+
+  ws.onmessage = (ev) => {
+    try {
+      const msg = JSON.parse(ev.data);
+      if (msg.type === 'scroll' && typeof msg.progress === 'number') {
+        if (autoMode) {
+          // AUTO: define o alvo — nunca volta atrás
+          // O lerp no rafLoop cuida de chegar lá suavemente
+          const p = clamp01(msg.progress);
+          if (p > targetP) setProgress(p, false);
+        }
+      } else if (msg.type === 'reload') {
+        STAT.textContent = '🔄 Novo roteiro…';
+        setTimeout(loadScript, 300);
+      } else if (msg.type === 'control') {
+        handleControl(msg);
+      }
+    } catch(e) {}
+  };
+
+  ws.onclose = () => {
+    DOT.className = 'err';
+    STAT.textContent = 'Desconectado. Reconectando em 2s…';
+    setTimeout(connect, 2000);
+  };
+  ws.onerror = () => {
+    DOT.className = 'err';
+    STAT.textContent = 'Erro WS. Verifique scroll_server.py.';
+  };
+}
+
+// ── Teclado ───────────────────────────────────────────────────────────
+document.getElementById('btn-plus').onclick  = () => changeFont(4);
+document.getElementById('btn-minus').onclick = () => changeFont(-4);
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === ' ')          { e.preventDefault(); togglePlay(); }
+  if (e.key === 'ArrowUp')    { e.preventDefault(); setMode('manual', true); manualSpeed = Math.min(0.003, manualSpeed + 0.0002); }
+  if (e.key === 'ArrowDown')  { e.preventDefault(); setMode('manual', true); manualSpeed = Math.max(0.0001, manualSpeed - 0.0002); }
+  if (e.key === 'ArrowRight') { e.preventDefault(); manualStep(0.008); }
+  if (e.key === 'ArrowLeft')  { e.preventDefault(); manualStep(-0.008); }
+  if (e.key.toLowerCase() === 'm') document.body.classList.toggle('mirror');
+  if (e.key.toLowerCase() === 'a') setMode('auto', true);
+});
+
+if (new URLSearchParams(window.location.search).get('mirror') === '1') {
+  document.body.classList.add('mirror');
+}
+
+window.addEventListener('resize', updateGuidePosition);
+updateGuidePosition();
+
+// ── Init ─────────────────────────────────────────────────────────────
+updateHUD();
+loadScript();
+connect();
+</script>
+</body>
+</html>

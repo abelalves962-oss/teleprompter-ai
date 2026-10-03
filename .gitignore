@@ -1,0 +1,18 @@
+__pycache__/
+.venv/
+venv/
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.tmp
+.env
+.env.*
+.vscode/
+.idea/
+.teleprompter_config.json
+.tp_reset.flag
+tp_status.json
+# Gerado pela aplicação com o PIN temporário do controle remoto.
+remote_by.html
+.DS_Store

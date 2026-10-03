@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Controle Remoto TP V5.13</title>
+<style>
+:root{
+  --bg:#090909;
+  --card:#151515;
+  --card2:#202020;
+  --text:#f4f4f5;
+  --muted:#a1a1aa;
+  --blue:#2563eb;
+  --green:#16a34a;
+  --yellow:#d97706;
+  --red:#dc2626;
+  --purple:#7c3aed;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:Arial,sans-serif;
+  padding:18px;
+  touch-action:manipulation;
+}
+h1{
+  font-size:24px;
+  margin:0 0 8px;
+}
+#status{
+  font-size:15px;
+  color:var(--muted);
+  margin-bottom:16px;
+}
+.panel{
+  background:var(--card);
+  border:1px solid #2a2a2a;
+  border-radius:16px;
+  padding:14px;
+  margin:12px 0;
+}
+.grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+}
+.grid3{
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  gap:10px;
+  margin-top:12px;
+}
+button{
+  font-size:19px;
+  padding:18px 10px;
+  border:0;
+  border-radius:14px;
+  background:#242424;
+  color:#fff;
+  box-shadow:0 2px 10px rgba(0,0,0,.25);
+  user-select:none;
+}
+button:active,.holding{
+  transform:scale(.98);
+  filter:brightness(1.25);
+}
+.primary{background:var(--blue)}
+.green{background:var(--green)}
+.yellow{background:var(--yellow)}
+.red{background:var(--red)}
+.purple{background:var(--purple)}
+.wide{grid-column:1/-1}
+label{
+  display:block;
+  margin-bottom:8px;
+  color:var(--muted);
+}
+input[type=range]{
+  width:100%;
+}
+.hint{
+  font-size:13px;
+  color:var(--muted);
+  line-height:1.4;
+  margin-top:8px;
+}
+#last{
+  font-size:12px;
+  color:#777;
+  margin-top:10px;
+  word-break:break-all;
+}
+#speedValue{
+  font-size:18px;
+  font-weight:bold;
+  color:#fff;
+  margin:8px 0;
+}
+.small{
+  font-size:15px;
+  padding:14px 8px;
+}
+</style>
+</head>
+<body>
+<h1>Controle Remoto TP</h1>
+<div id="status">Conectando...</div>
+
+<div class="panel">
+  <label>Velocidade manual</label>
+  <div id="speedValue">0.0012</div>
+  <input id="speed" type="range" min="0.0003" max="0.0030" step="0.0001" value="0.0012">
+  <div class="grid3">
+    <button class="small" onclick="setPreset(0.0006)">Lento</button>
+    <button class="small" onclick="setPreset(0.0012)">Normal</button>
+    <button class="small" onclick="setPreset(0.0020)">Rápido</button>
+  </div>
+  <div class="hint">Use em modo MANUAL. Segure Avançar/Voltar para rolagem contínua.</div>
+  <div id="last">Último comando: nenhum</div>
+</div>
+
+<div class="grid">
+  <button class="green" onclick="sendAuto()">AUTO IA</button>
+  <button class="yellow" onclick="sendManual()">MANUAL</button>
+
+  <button class="primary" onclick="sendPlayPause()">PLAY/PAUSE</button>
+  <button class="red" onclick="sendReset()">RESET</button>
+
+  <button id="btnBack" onpointerdown="holdStart('back',0.006,this)" onpointerup="holdStop(this)" onpointerleave="holdStop(this)" onpointercancel="holdStop(this)">◀ Voltar</button>
+  <button id="btnForward" onpointerdown="holdStart('forward',0.006,this)" onpointerup="holdStop(this)" onpointerleave="holdStop(this)" onpointercancel="holdStop(this)">Avançar ▶</button>
+
+  <button onpointerdown="holdStart('back',0.014,this)" onpointerup="holdStop(this)" onpointerleave="holdStop(this)" onpointercancel="holdStop(this)">◀◀ Voltar +</button>
+  <button onpointerdown="holdStart('forward',0.014,this)" onpointerup="holdStop(this)" onpointerleave="holdStop(this)" onpointercancel="holdStop(this)">Avançar + ▶▶</button>
+
+  <button onclick="sendFontMinus()">A−</button>
+  <button onclick="sendFontPlus()">A+</button>
+
+  <button class="wide purple" onclick="sendMirror()">Espelhar / Normal</button>
+</div>
+
+<script>
+let ws=null;
+let holdTimer=null;
+let holdPayload=null;
+
+const statusEl=document.getElementById("status");
+const speedEl=document.getElementById("speed");
+const speedValueEl=document.getElementById("speedValue");
+const lastEl=document.getElementById("last");
+
+function connect(){
+  const url=`ws://${location.hostname}:8765/sender`;
+  ws=new WebSocket(url);
+
+  ws.onopen=()=>{
+    statusEl.textContent="Conectado ao WebSocket";
+    statusEl.style.color="#22c55e";
+  };
+
+  ws.onclose=()=>{
+    statusEl.textContent="Desconectado. Reconectando...";
+    statusEl.style.color="#ef4444";
+    setTimeout(connect,1500);
+  };
+
+  ws.onerror=()=>{
+    statusEl.textContent="Erro no WebSocket";
+    statusEl.style.color="#ef4444";
+  };
+}
+
+function send(payload){
+  if(!ws || ws.readyState!==WebSocket.OPEN){
+    statusEl.textContent="Sem conexão com WebSocket";
+    statusEl.style.color="#ef4444";
+    return;
+  }
+
+  ws.send(JSON.stringify(payload));
+  lastEl.textContent="Último comando: "+JSON.stringify(payload);
+}
+
+function sendAuto(){
+  send({type:"control",mode:"auto"});
+}
+
+function sendManual(){
+  send({type:"control",mode:"manual"});
+}
+
+function sendPlayPause(){
+  send({type:"control",action:"toggle_play"});
+}
+
+function sendReset(){
+  send({type:"control",action:"reset"});
+}
+
+function sendForward(value){
+  send({type:"control",action:"forward",value:value});
+}
+
+function sendBack(value){
+  send({type:"control",action:"back",value:value});
+}
+
+function sendMirror(){
+  send({type:"control",action:"toggle_mirror"});
+}
+
+function sendFontPlus(){
+  send({type:"control",action:"font_plus"});
+}
+
+function sendFontMinus(){
+  send({type:"control",action:"font_minus"});
+}
+
+function setPreset(value){
+  speedEl.value=value.toFixed(4);
+  updateSpeed();
+}
+
+function updateSpeed(){
+  const value=Math.max(0.0003,Math.min(0.0030,Number(speedEl.value)));
+  speedValueEl.textContent=value.toFixed(4);
+  send({type:"control",speed:value});
+}
+
+speedEl.addEventListener("input", updateSpeed);
+
+function holdStart(action,value,btn){
+  holdStop();
+
+  if(btn) btn.classList.add("holding");
+
+  holdPayload={type:"control",action:action,value:value};
+
+  // Envia imediatamente no primeiro toque
+  send(holdPayload);
+
+  // Continua enviando enquanto o botão estiver pressionado
+  holdTimer=setInterval(()=>{
+    send(holdPayload);
+  },120);
+}
+
+function holdStop(btn){
+  if(holdTimer){
+    clearInterval(holdTimer);
+    holdTimer=null;
+  }
+
+  if(btn) btn.classList.remove("holding");
+
+  document.querySelectorAll(".holding").forEach(b=>b.classList.remove("holding"));
+}
+
+document.addEventListener("visibilitychange",()=>{
+  if(document.hidden) holdStop();
+});
+
+window.addEventListener("blur",()=>holdStop());
+
+connect();
+updateSpeed();
+</script>
+</body>
+</html>

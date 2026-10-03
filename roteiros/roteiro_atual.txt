@@ -1,0 +1,14 @@
+Bem-vindos a esta demonstração do Teleprompter com Inteligência Artificial.
+
+O sistema acompanha a leitura em português e atualiza a posição do texto de forma progressiva.
+
+No modo automático, o movimento acontece somente quando a fala é reconhecida e alinhada ao roteiro.
+
+No modo manual, o operador pode avançar ou voltar o texto usando os controles locais ou o controle remoto.
+
+Os comandos de pausa, retomada, espelhamento e tamanho da fonte permanecem disponíveis durante a apresentação.
+
+Este roteiro contém apenas conteúdo neutro criado para testes locais e demonstrações de portfólio.
+
+Ao chegar ao final, o Teleprompter para suavemente em cem por cento e aguarda um novo comando do operador.
+

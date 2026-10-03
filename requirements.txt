@@ -1,0 +1,10 @@
+numpy>=1.24,<3
+sounddevice>=0.4.6,<1
+faster-whisper>=1.0,<2
+rapidfuzz>=3.0,<4
+websockets>=12,<16
+psutil>=5.9,<8
+Pillow>=10,<13
+qrcode[pil]>=7.4,<9
+tkinterweb>=3.24,<5
+
