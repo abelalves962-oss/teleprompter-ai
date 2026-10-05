@@ -1,150 +1,210 @@
 # Teleprompter AI — Speech-Synchronized Broadcast Teleprompter
 
-Teleprompter inteligente desenvolvido em Python que acompanha automaticamente a leitura do apresentador por reconhecimento de fala e alinhamento com o roteiro.
+A functional portfolio prototype for broadcast workflows, combining speech recognition, script alignment, and smooth teleprompter scrolling.
 
-![Teleprompter nativo em operação](docs/images/teleprompter.png)
+[English](#english) | [Português](#portugues)
 
-## Visão geral
+![Python 3.11](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
+![Tests: 62 passing](https://img.shields.io/badge/Tests-62%20passing-brightgreen)
+![Status: Stable](https://img.shields.io/badge/Status-Stable-success)
+![Platform: Windows](https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows&logoColor=white)
+![License: Not specified](https://img.shields.io/badge/License-Not%20specified-lightgrey)
 
-O Teleprompter AI combina reconhecimento de fala, alinhamento textual e um motor de rolagem suave para acompanhar o apresentador sem exigir avanço manual constante. O operador pode alternar entre automação e controle manual durante uma operação de broadcast.
+![Teleprompter AI native teleprompter](docs/images/teleprompter.png)
 
-## Demonstração
+*Native Broadcast Teleprompter — speech-synchronized scrolling with AUTO/MANUAL operation.*
 
-### Interface de operação
+<a id="english"></a>
 
-![Interface de operação do Teleprompter AI](docs/images/interface.png)
+## Overview
 
-### Teleprompter nativo
+Teleprompter AI is a functional application and portfolio prototype designed for broadcast workflows. It follows the presenter's speech, aligns recognized text with the loaded script, and converts the resulting textual position into a visual scrolling position. The operator can switch between speech-driven automation and direct manual control during a session.
 
-![Teleprompter nativo com HUD operacional](docs/images/teleprompter.png)
+## Key Features
 
-### Controle remoto
+- Speech-synchronized automatic scrolling
+- AUTO / MANUAL operation
+- Native broadcast teleprompter window
+- Remote control from phone or tablet
+- QR-based remote pairing
+- WebSocket communication
+- PLAY / PAUSE / RESET controls
+- Manual shuttle forward and back
+- Horizontal mirror mode
+- Font size control
+- Session-aware RESET
+- Visual progress HUD
+- Local script library
+- Smooth scroll motor
 
-![Controle remoto para celular](docs/images/remote.png)
+## Demo
 
-## Como funciona
+### Operator Interface
 
-```text
-Microfone
-    ↓
-Whisper
-    ↓
-Normalização da fala
-    ↓
-Alinhamento com roteiro
-    ↓
-word_index
-    ↓
-Mapa visual / interpolação sub-linha
-    ↓
-target_y
-    ↓
-Motor de rolagem
-    ↓
-Teleprompter
+![Teleprompter AI operator interface](docs/images/interface.png)
+
+### Native Teleprompter
+
+![Native teleprompter with operational HUD](docs/images/teleprompter.png)
+
+### Mobile Remote Control
+
+![Mobile remote control](docs/images/remote.png)
+
+## How It Works
+
+```mermaid
+flowchart LR
+    A[Microphone] --> B[Speech Recognition]
+    B --> C[Text Normalization]
+    C --> D[Script Alignment]
+    D --> E[word_index]
+    E --> F[Visual Word Map]
+    F --> G[Target Position]
+    G --> H[Smooth Scroll Motor]
+    H --> I[Native Teleprompter]
 ```
 
-## Principais recursos
+The current implementation uses **faster-whisper**, **RapidFuzz**, **Tkinter**, **WebSockets**, **sounddevice**, **NumPy**, and **Pillow**. See the [technical architecture](docs/ARCHITECTURE.md) for the detailed data flow and operational state model.
 
-- Reconhecimento de fala
-- Alinhamento da fala ao roteiro
-- Modos AUTO e MANUAL
-- PLAY/PAUSE e RESET
-- Avançar/Voltar para operação manual
-- Teleprompter nativo
-- Controle remoto
-- Espelhamento para vidro de teleprompter
-- Comunicação WebSocket e servidor HTTP
-- Biblioteca de roteiros
-- HUD AUTO/MANUAL
-- Percentual baseado na posição visual
-- Interpolação sub-linha a partir de `word_index`
-- Proteção de sessão e reset por `session_id`
+## Quick Start
 
-## Arquitetura
-
-- `TP_Control_GUI.py`: interface Tkinter, gerenciamento dos processos, biblioteca de roteiros, controle operacional e renderização do TP nativo.
-- `main_align_ws.py`: captura de áudio, transcrição com Whisper, normalização, alinhamento do texto falado e envio de progresso/`word_index`.
-- `scroll_server.py`: servidor WebSocket que distribui comandos e atualizações entre IA, teleprompter e controles.
-- `remote_by.html`: controle remoto gerado pela aplicação com PIN operacional temporário.
-
-O projeto é atualmente organizado nesses componentes principais, sem apresentar como concluída uma modularização que ainda faz parte do roadmap. Veja [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) para o fluxo técnico.
-
-## Desafios técnicos resolvidos
-
-1. **Latência dos comandos** — uma conexão WebSocket persistente evita o custo de reconectar a cada comando.
-2. **Continuidade do scroll** — o destino solicitado (`target_y`) é separado da posição física atual, permitindo que o motor continue perseguindo o alvo entre mensagens.
-3. **Palavra e linha visual** — o `word_index` do alinhador é convertido para o mapa das linhas efetivamente renderizadas.
-4. **RESET e pacotes antigos** — o `session_id` impede que mensagens de uma sessão anterior contaminem a sessão corrente.
-5. **Rolagem suave** — velocidade, aceleração, damping e intervalo de tempo (`dt`) compõem a dinâmica do movimento.
-6. **AUTO/MANUAL** — ambos usam a mesma física; muda apenas a origem do `target_y`.
-7. **Resposta inicial** — a posição da palavra dentro da linha é interpolada, permitindo reação visual antes da mudança para a linha seguinte.
-
-## Tecnologias
-
-- Python 3.11
-- Tkinter
-- faster-whisper
-- NumPy
-- sounddevice
-- RapidFuzz
-- websockets
-- psutil
-- Pillow
-- qrcode
-- tkinterweb
-
-## Testes
-
-**62 testes automatizados aprovados** na versão atualmente validada.
+Requirements: Windows, Python 3.11, and a working microphone. Audio device indices vary by machine; select the appropriate input device for the local system.
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s tests -v
-```
+git clone https://github.com/abelalves962-oss/teleprompter-ai.git
+cd teleprompter-ai
 
-Não foi medida cobertura percentual.
-
-## Instalação
-
-Ambiente validado: Windows com Python 3.11 e microfone configurado.
-
-```powershell
-cd C:\caminho\para\TP_AI
 py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 python TP_Control_GUI.py
 ```
 
-O primeiro carregamento do modelo Whisper pode precisar baixar seus arquivos. O `requirements.txt` contém as dependências externas importadas pelo projeto; Tkinter faz parte da instalação padrão do Python para Windows.
+The first use of the speech model may require downloading its model files.
 
-## Uso
+## Tests
 
-1. Selecione ou confirme o interpretador Python na interface.
-2. Carregue um roteiro da biblioteca ou escolha um arquivo compatível.
-3. Inicie os serviços HTTP e WebSocket.
-4. Abra o TP nativo.
-5. Inicie IA/Voz.
-6. Faça a leitura em AUTO para acompanhamento por fala.
-7. Use MANUAL, Avançar/Voltar e PLAY/PAUSE como controles operacionais.
+The validated project state has **62 automated tests passing**. Run the current suite with:
 
-## Segurança
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
 
-Esta versão é destinada a demonstração e ambientes controlados. HTTP e WebSocket usam `127.0.0.1` por padrão. A exposição na rede local por `TELEPROMPTER_ALLOW_LAN=1` deve ser feita apenas em uma rede confiável e com controles externos adequados, pois o protocolo atual não oferece autenticação de rede forte nem transporte TLS.
+No test coverage percentage is claimed. See the [local testing guide](docs/TESTING.md) for hardware-independent and manual validation scenarios.
 
-Arquivos locais, estado de execução, ambientes virtuais e o controle remoto gerado com PIN temporário são excluídos pelo `.gitignore`.
+## Project Structure
+
+```text
+teleprompter-ai/
+├── TP_Control_GUI.py
+├── main_align_ws.py
+├── scroll_server.py
+├── tp.html
+├── remote.html
+├── requirements.txt
+├── tests/
+├── docs/
+├── examples/
+└── roteiros/
+```
+
+- `TP_Control_GUI.py` — Tkinter operator interface, process management, local script library, controls, and native teleprompter rendering.
+- `main_align_ws.py` — audio capture, speech transcription, text normalization, script alignment, and progress updates.
+- `scroll_server.py` — WebSocket relay for commands and state updates.
+- `tp.html` and `remote.html` — browser-based teleprompter and remote-control interfaces.
+- `tests/` — automated contract tests; `docs/` — architecture, testing notes, and real screenshots.
+
+## Security and Network
+
+- Local HTTP and WebSocket servers bind to loopback by default.
+- LAN access is enabled only when needed for mobile remote control and should be used on a trusted network.
+- The pairing QR code uses a dynamically detected LAN IPv4 address; no fixed or real-world IP is published here.
+- A temporary PIN is used for remote pairing.
+- Local configuration, runtime state, virtual environments, logs, and the generated PIN-bearing remote page are ignored by Git.
 
 ## Roadmap
 
-- Integração com iNews/Autoscript
-- Modularização da arquitetura
-- Empacotamento da aplicação
-- Autenticação de rede
-- Telemetria operacional
-- Testes com diferentes locutores e ambientes acústicos
+The following are future improvements, not current capabilities:
 
-## Autor
+- Integration with editorial workflows such as iNews/Autoscript
+- Application packaging and distribution
+- Operational telemetry
+- Operator profiles and configuration presets
+- Additional validation in broadcast environments
+
+## Disclaimer
+
+This repository presents a functional portfolio prototype focused on broadcast engineering and AI-assisted teleprompter workflows. It does not represent a claim of deployment in any broadcaster's production environment.
+
+<a id="portugues"></a>
+
+# Português
+
+## Visão geral
+
+O Teleprompter AI é uma aplicação funcional e um protótipo de portfólio voltado a fluxos de broadcast. O sistema acompanha a fala do apresentador, alinha o texto reconhecido ao roteiro carregado e transforma a posição textual em uma posição visual de rolagem.
+
+## Principais recursos
+
+- Rolagem automática sincronizada com a fala
+- Operação AUTO / MANUAL e controles PLAY / PAUSE / RESET
+- Janela de teleprompter nativo com HUD de progresso
+- Controle remoto por celular ou tablet, pareamento por QR e PIN
+- Comunicação WebSocket
+- Shuttle manual para avançar e voltar
+- Espelhamento horizontal e ajuste de fonte
+- RESET protegido por sessão, biblioteca local de roteiros e rolagem suave
+
+## Como funciona
+
+O microfone alimenta o reconhecimento de fala; o texto é normalizado e alinhado ao roteiro. O `word_index` resultante é convertido pelo mapa visual em uma posição-alvo, seguida pelo motor de rolagem suave do teleprompter nativo. Consulte o [diagrama e a arquitetura técnica](docs/ARCHITECTURE.md).
+
+## Execução rápida
+
+Requisitos: Windows, Python 3.11 e microfone funcional. O índice do dispositivo de áudio depende de cada máquina.
+
+```powershell
+git clone https://github.com/abelalves962-oss/teleprompter-ai.git
+cd teleprompter-ai
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python TP_Control_GUI.py
+```
+
+## Testes
+
+O estado validado possui **62 testes automatizados aprovados**:
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
+
+Veja também o [guia de testes locais](docs/TESTING.md). Não é informado percentual de cobertura.
+
+## Demonstração
+
+As capturas reais mostram a [interface do operador](docs/images/interface.png), o [teleprompter nativo](docs/images/teleprompter.png) e o [controle remoto móvel](docs/images/remote.png).
+
+## Segurança e rede
+
+Os servidores locais usam loopback por padrão. O acesso LAN é habilitado quando necessário para o controle remoto; o QR usa o IPv4 da LAN detectado dinamicamente e o pareamento utiliza PIN. Configurações locais, estados de execução e outros arquivos de runtime são ignorados pelo Git. Não há IP real publicado neste README.
+
+## Melhorias futuras
+
+Integração com workflows editoriais como iNews/Autoscript, empacotamento e distribuição, telemetria operacional, perfis/configurações de operador e validações adicionais em ambientes de broadcast permanecem exclusivamente no roadmap.
+
+## Aviso
+
+Este repositório apresenta um protótipo funcional de portfólio focado em engenharia de broadcast e fluxos de teleprompter assistidos por IA. Ele não representa uma alegação de implantação em ambiente de produção de qualquer emissora.
+
+## License
+
+No license has been selected yet.
+
+## Author
 
 Paulo Abel Pereira Alves
 
-Engenharia de Telecomunicações | Broadcast | Python | Inteligência Artificial
+Telecommunications Engineering | Broadcast Engineering | Python | AI
