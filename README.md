@@ -8,7 +8,7 @@ A functional portfolio prototype for broadcast workflows, combining speech recog
 ![Tests: 62 passing](https://img.shields.io/badge/Tests-62%20passing-brightgreen)
 ![Status: Stable](https://img.shields.io/badge/Status-Stable-success)
 ![Platform: Windows](https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows&logoColor=white)
-![License: Not specified](https://img.shields.io/badge/License-Not%20specified-lightgrey)
+![License: All rights reserved](https://img.shields.io/badge/License-All%20rights%20reserved-lightgrey)
 
 ![Teleprompter AI native teleprompter](docs/images/teleprompter.png)
 
@@ -201,7 +201,32 @@ Este repositório apresenta um protótipo funcional de portfólio focado em enge
 
 ## License
 
-No license has been selected yet.
+Copyright © 2026 Paulo Abel Pereira Alves. All rights reserved.
+
+This repository is publicly available for portfolio, demonstration,
+and professional evaluation purposes.
+
+No open-source license is granted for the source code in this repository.
+Commercial use, redistribution, modification for redistribution,
+or incorporation into commercial products requires prior authorization
+from the author.
+
+Commercial licensing and other usage arrangements may be discussed
+directly with the author.
+
+## Licença
+
+Copyright © 2026 Paulo Abel Pereira Alves. Todos os direitos reservados.
+
+Este repositório é disponibilizado publicamente para fins de portfólio,
+demonstração e avaliação profissional.
+
+Nenhuma licença de código aberto é concedida para o código-fonte deste
+repositório. Uso comercial, redistribuição, modificação para redistribuição
+ou incorporação em produtos comerciais requer autorização prévia do autor.
+
+Licenciamento comercial e outras formas de utilização poderão ser
+negociados diretamente com o autor.
 
 ## Author
 
